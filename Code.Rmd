@@ -1,0 +1,202 @@
+---
+title: "MA331-Report: 2211911"
+author: "Ruhela, Tanu"
+subtitle: TED Talks by Speaker Hans Rosling and Speaker Deborah Gordon
+output: html_document
+---
+
+```{r setup, include=FALSE}
+### Don't delete this setup code chunk from your file
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = NULL)   ## DON'T ALTER THIS: this is to prevent printing the code or any unnecessary addition in your final "html" report file.
+
+#====================================================================================
+#List of all libraries used in the report to load data, tidy data, plot graphs and few more for utilising extra methods 
+if(!require("tidyverse")) install.packages("tidyverse")
+if(!require("tidytext")) install.packages("tidytext")
+if(!require("ggrepel")) install.packages("ggrepel")
+if(!require("gutenbergr")) install.packages("gutenbergr")
+if(!require("dsEssex")) devtools::install_github("statcourses/dsEssex")
+if(!require("ggpubr")) install.packages("ggpubr")
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+library(gutenbergr)
+library(dsEssex)
+library(ggpubr)
+```
+
+## Introduction
+This report examines TED talks given by *Hans Rosling* and *Deborah Gordon*. *Hans Rosling* was a Swedish physician, academic, and statistician, who used his expertise in data analysis to shed light on important global issues such as health and poverty. On the other hand, Deborah Gordon is a biologist who has devoted her career to studying ants and their behavior. Her TED talks delve into the fascinating world of ant colonies, where she reveals the intricate social systems and hierarchies that exist within these tiny creatures. The below headlines are being focused in the report
+
+* "The Best Stats You've Ever Seen" by Hans Rosling (2006)
+* "New Insights on Poverty" by Hans Rosling (2007)
+* "Insights on HIV, in Stunning Data Visuals" by Hans Rosling (2009)
+* "The Emergent Genius of Ant Colonies" by Deborah Gordon (2003)
+* "What Ants Teach Us About the Brain, Cancer and the Internet" by Deborah Gordon (2014)
+
+The report aims to answer questions about the main themes of these talks, what are the most frequent used words by the speakers, how the language usage and sentiment of the talks differs of both speakers and check if there are any patterns or themes that can be brought up from the analysis of these talks
+
+
+## Methods
+The interpretation of both the speakers will be as follows.
+
+Firstly, *Tidying and Tokenization* help in structuring the words by converting them to tokens and then my removing the stop words using unnest_tokens(), anti_join() and get_stopwords(). Secondly, Word Frequency Analysis is being implemented to identify the most frequent words used by the speakers in the talks by grouping, filtering and slicing. Then, the Odds-Ratios technique helps in comparing the emotions of the two ted speakers. It can be done by using compute_OR() and log_OR() functions used in dsEssex
+
+In the report further, Sentiment Analysis helps to differentiate the patterns of speakers and what are the most used emotions. NRC Sentiment and Emotion lexicons will be used to analyze it. 
+
+Overall, this report aims to provide a comprehensive understanding how Hans Rosling and Deborah Gordon usually delivers there speech. What are their most common words while delivering the speech and what are their emotions.
+
+
+## Results
+
+The first step is to tokenize and remove the stop words from both the speakers. The glimpse of both speakers can be seen below:
+```{r}
+
+# Load the 'ted_talks' data which is read from dsEssex library
+#==========================================================================
+data(ted_talks)
+#==========================================================================
+
+#==========================================================================
+# Selecting the ted speakers "Hans Rosling" and "Deborah Gordon"
+MyData <- ted_talks %>%
+  filter(speaker %in% c("Hans Rosling", "Deborah Gordon"))
+
+# Tokenisation and removal of stop words from both the speakers using there speech which is referred as text in ted_talks
+# Tokenisation for Hans Rowling
+Hans_Rosling<- MyData  %>%
+  unnest_tokens(word, text) %>%
+  mutate(word = str_trim(word)) %>%  
+  anti_join(get_stopwords()) %>%
+  filter(speaker=="Hans Rosling") %>% 
+  count(speaker, word, sort=TRUE)
+
+# Tokenisation for Deborah Gordon
+Deborah_Gordon <- MyData  %>%
+  unnest_tokens(word, text) %>% 
+  mutate(word = str_trim(word) )%>% 
+  anti_join(get_stopwords()) %>%
+  filter(speaker=="Deborah Gordon") %>% 
+  count(speaker, word, sort=TRUE)
+
+# glimpse of records using glimpse and head which will show the result in table form
+  head(Hans_Rosling)
+  head(Deborah_Gordon)
+#==========================================================================
+```
+  
+The below graph displays top 10 words of both speakers. By interpreting the below graphs, we can say that the most often words used by  *Hans Rosling* while explaining the world statistical issues of health and poverty are 'can', 'world', 'countries' and 'now'. On the other hand *Deborah Gordon* used 'ants', 'nest', 'colony', 'workers' and 'maintenance' mostly. This helps us depict the over view she explained about the ant colonies and how they work.  
+
+```{r}
+#==========================================================================
+
+# Frequency plots for Hans
+Hans_Graph <- Hans_Rosling %>% 
+  slice_max(n,n=10) %>% 
+  mutate(word=reorder(word, n)) %>%
+  ggplot(aes(n,word)) + 
+  geom_col(aes(fill="Pink"), show.legend = FALSE) +
+  labs(x="Number of words", y = "Frequency", title="Han's Talk")
+
+# Frequency plots for Deborah
+Deborah_Graph <- Deborah_Gordon %>% 
+  slice_max(n,n=10) %>% 
+  mutate(word=reorder(word,n)) %>%
+  ggplot(aes(n,word), title("Deboarh Talk")) + 
+  geom_col(aes(fill="Pink"), show.legend = FALSE) +
+  labs(x="Number of words", y = "Frequency", title="Deborah's Talk")
+
+# Arrange the graph side by side
+ggarrange(Hans_Graph, Deborah_Graph) + 
+  labs(caption = "Frequency Counts") +
+  theme(plot.caption = element_text(hjust = 0.5))
+#==========================================================================
+```
+
+
+The below scatter plot visualizes the words frequently used by a speaker against other, or the words that are similar in both speakers. The position of a dot to the red line shows which speaker uses a word more regularly. The labels on the dots show the words by speakers and the number of overlaps indicates the number of times a word is used by 2 speakers.
+It can be said that the words below the line are mostly used by the *Hans Rosling* while the words above the line are mostly used by the *Deborah Gordon*. The one near the line are uniformly used by both speakers. We can say that *Deborah* used 'ant', 'nest', 'colony' uniformly in her speech and *Hans Rosling* uses 'now', 'countries', 'world' and 'can' more often. 
+
+
+```{r}
+#==========================================================================
+
+# Binding the data for Hans and Deborah
+hans_deborah <- rbind(Hans_Rosling, Deborah_Gordon)
+
+#Group words for both speakers
+hans_deborah_group <- hans_deborah  %>%
+  group_by(word) %>% 
+  filter(sum(n) > 20) %>%
+  slice_max(n, n=20) %>%
+  ungroup() %>% 
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0)
+#==========================================================================
+
+#==========================================================================
+
+# Plot the words spoken by both speaker using ggplot, geom_point
+hans_deborah_group  %>%
+  ggplot(aes(`Hans Rosling`, `Deborah Gordon`)) +
+  geom_point(alpha=0.3) +
+  geom_abline(color='Pink') +
+  geom_text_repel(aes(label=word),max.overlaps = 10)
+#==========================================================================
+
+```
+
+
+The below table and graph represents the log values of odds ratio. It can be seen that the most common emotions used by *Hans Rosling* (positive axes) are fear, anger, joy, negative, anticipation and sadness while giving his talk on global statistics, poverty and health, he anticipates the future outcome based on the present activities, whereas *Deborah Gordon* (negative axes) uses trust, positive, surprise and disgust emotions in her speech of ants. 
+```{r}
+
+
+#==========================================================================
+# Odds ratio and sentiment analysis for both the speakers
+odd_ratio <- hans_deborah %>% 
+  inner_join(get_sentiments("nrc"),by="word") %>%
+  count(speaker, sentiment) %>%
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0)
+
+# Odd-Ratio(OR) table using log_OR() and OR() function
+hans_deborah %>% 
+  inner_join(get_sentiments("nrc"),by="word") %>%
+  count(speaker,sentiment) %>%
+  pivot_wider(names_from = speaker,values_from = n,values_fill = 0) %>%
+  mutate(OR=compute_OR(`Hans Rosling`,`Deborah Gordon`,correction = FALSE), 
+         log_OR=log(OR), sentiment=reorder(sentiment,log_OR)) %>%
+  arrange(desc(OR))
+
+# Odd-Ratio (OR) graph
+hans_deborah %>% inner_join(get_sentiments("nrc"), by="word", multiple="all") %>%
+  count(speaker,sentiment) %>%
+  pivot_wider(names_from = speaker,values_from = n,values_fill = 0) %>%
+  mutate(OR=compute_OR(`Hans Rosling`, `Deborah Gordon`, correction = FALSE), log_OR=log(OR),
+  sentiment=reorder(sentiment,log_OR)) %>%
+  ggplot(aes(sentiment,log_OR,fill=log_OR < 0)) +
+  geom_col(show.legend = FALSE) +
+  labs(x ="Odd-Ratio(OR)", y="Sentiments", title ="Association between Sentiments and Odd-Ratio") +
+  coord_flip() + 
+  scale_fill_manual(name="", values=c("Pink","orange")) 
+#==========================================================================
+
+```
+
+
+```{r, fig.width=8}
+#==========================================================================
+
+#Plot bar graph for showing the sentiments for both speakers
+hans_deborah %>% 
+  inner_join(get_sentiments("nrc"),by="word") %>%
+  count(speaker, sentiment) %>% group_by(speaker) %>%
+  slice_max(n, n=10) %>%
+  ungroup() %>%
+  ggplot(aes(x=sentiment, y = n, fill = speaker))+
+  geom_bar(stat="identity", position="dodge") +
+  labs(x = "Sentiments", y = "Frequency of Sentiment", title = "Sentiment Analysis") +
+  scale_fill_manual(name="", values=c("Pink","orange"))  
+#==========================================================================
+
+```
+
+To conclude, the report examines specific TED talks given by *Hans Rosling* and *Deborah Gordon*. The text was processed through various techniques, such as tidying and tokenizing, stop words removal, word frequency and sentiment analysis. The analysis reveals that *Hans Rosling* frequently uses words such as 'can', 'world', 'countries', and 'now', while *Deborah Gordon* focuses on 'ants', 'nest', 'colony', 'workers', and 'maintenance'. Hans Rosling's speeches address global issues related to health and poverty, while Deborah Gordon talks about the workings of ant colonies. Moreover, the Odds-Ratios technique shows that Hans Rosling's speeches express more positive emotions than Deborah Gordon's speeches, which were mostly neutral. Finally, using NRC sentiment and emotion lexicons, the report concludes that Hans Rosling's speeches have a positive sentiment, while Deborah Gordon's speeches have a neutral sentiment.
